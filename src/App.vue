@@ -1,10 +1,7 @@
 <!-- src/App.vue -->
 <template>
   <div id="app">
-    <ModelViewer
-      @loading="onLoading"
-      @progress="onProgress"
-    />
+    <ModelViewer @loading="onLoading" @progress="onProgress" />
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
         <div class="spinner"></div>
@@ -40,7 +37,7 @@ function onProgress(value) {
 
 <style>
 #app {
-  width: 10 0vw;
+  width: 100vw;
   height: 100vh;
   margin: 0;
   overflow: hidden;
