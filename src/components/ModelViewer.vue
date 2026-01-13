@@ -14,10 +14,9 @@ const container = ref(null)
 let scene, camera, renderer, currentModel = null
 let animationId = null
 let isLoading = false
-let modelCache = {}
-let controls = null // 控制器实例
+const modelCache = {}
+let controls = null
 
-// 初始化 Three.js
 onMounted(() => {
   initScene()
   loadModel('hunyuan01.glb').then(() => {
@@ -35,36 +34,46 @@ onBeforeUnmount(() => {
 
 function initScene() {
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x1a1a1a)
+  scene.background = new THREE.Color(0x222222) // 稍亮一点的背景，避免纯黑压抑
 
-  // 添加环境光（防止模型全黑）
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+  // 🌤️ 温和柔光方案：HemisphereLight（天光+地光） + 微弱环境光
+  const hemisphereLight = new THREE.HemisphereLight(
+    0xffffff, // 天空颜色（偏白）
+    0x444444, // 地面颜色（灰，模拟地面反光）
+    0.8       // 整体强度（比默认0.5更亮）
+  )
+  hemisphereLight.position.set(0, 1, 0) // 从上方照射
+  scene.add(hemisphereLight)
+
+  // 💡 补充微弱环境光，确保模型无死角黑暗
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
   scene.add(ambientLight)
 
-  // 添加方向光（模拟太阳光）
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-  directionalLight.position.set(1, 1, 1)
+  // 🔦 保留一个较弱的方向光，增加一点立体感（但不抢戏）
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
+  directionalLight.position.set(2, 3, 2)
+  directionalLight.castShadow = false // 不需要阴影
   scene.add(directionalLight)
 
-  // 创建相机
+  // 相机
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000)
   camera.position.set(0, 0, 5)
 
-  // 创建渲染器
-  renderer = new THREE.WebGLRenderer({ antialias: true })
+  // 渲染器
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.setPixelRatio(window.devicePixelRatio)
   container.value.appendChild(renderer.domElement)
 
-  // 添加轨道控制器（鼠标交互）
+  // 控制器
   controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true // 平滑阻尼
+  controls.enableDamping = true
   controls.dampingFactor = 0.05
-  controls.rotateSpeed = 0.5
-  controls.minDistance = 2
-  controls.maxDistance = 10
+  controls.rotateSpeed = 0.8
+  controls.minDistance = 1.5
+  controls.maxDistance = 15
+  controls.enablePan = false // 可选：禁用平移，聚焦模型
 
-  // 启动动画循环
   animate()
 }
 
@@ -77,13 +86,12 @@ function handleResize() {
 
 function animate() {
   animationId = requestAnimationFrame(animate)
-  controls.update() // 更新控制器状态
+  controls.update()
   renderer.render(scene, camera)
 }
 
-// 预加载模型
 function preloadModel(modelName) {
-  if (modelCache[modelName] || isLoading) return
+  if (modelCache[modelName]) return
 
   const loader = new GLTFLoader()
   loader.load(
@@ -99,7 +107,6 @@ function preloadModel(modelName) {
   )
 }
 
-// 加载模型（带进度、重试、缓存）
 async function loadModel(modelName, retryCount = 0) {
   if (isLoading) return Promise.resolve()
   isLoading = true
@@ -107,7 +114,7 @@ async function loadModel(modelName, retryCount = 0) {
   emit('progress', 0)
 
   if (modelCache[modelName]) {
-    switchToModel(modelCache[modelName])
+    switchToModel(modelCache[modelName], modelName)
     isLoading = false
     emit('loading', false)
     return Promise.resolve()
@@ -117,71 +124,61 @@ async function loadModel(modelName, retryCount = 0) {
   const oldModel = currentModel
 
   return new Promise((resolve, reject) => {
-    const loadHandler = (gltf) => {
-      const clonedScene = gltf.scene.clone()
-      modelCache[modelName] = clonedScene
-      switchToModel(clonedScene)
-      isLoading = false
-      emit('loading', false)
-      resolve()
-    }
-
-    const progressHandler = (xhr) => {
-      if (xhr.lengthComputable) {
-        const percent = (xhr.loaded / xhr.total) * 100
-        emit('progress', percent)
-      }
-    }
-
-    const errorHandler = (error) => {
-      if (retryCount < 2) {
-        setTimeout(() => {
-          loadModel(modelName, retryCount + 1).then(resolve).catch(reject)
-        }, 1000)
-      } else {
-        console.error('模型最终加载失败:', error)
-        alert(`❌ 模型 ${modelName} 加载失败，请刷新重试。`)
-        if (oldModel && !scene.getObjectById(oldModel.id)) {
-          scene.add(oldModel)
-          currentModel = oldModel
-        }
-        isLoading = false
-        emit('loading', false)
-        emit('progress', 0)
-        reject(error)
-      }
-    }
-
     loader.load(
       `/model/${modelName}`,
-      loadHandler,
-      progressHandler,
-      errorHandler
+      (gltf) => {
+        modelCache[modelName] = gltf.scene.clone()
+        switchToModel(modelCache[modelName], modelName)
+        isLoading = false
+        emit('loading', false)
+        resolve()
+      },
+      (xhr) => {
+        if (xhr.lengthComputable) {
+          const percent = (xhr.loaded / xhr.total) * 100
+          emit('progress', percent)
+        }
+      },
+      (error) => {
+        if (retryCount < 2) {
+          setTimeout(() => {
+            loadModel(modelName, retryCount + 1).then(resolve).catch(reject)
+          }, 1000)
+        } else {
+          console.error('模型最终加载失败:', error)
+          alert(`❌ 模型 ${modelName} 加载失败，请刷新重试。`)
+          if (oldModel && !scene.getObjectById(oldModel.id)) {
+            scene.add(oldModel)
+            currentModel = oldModel
+          }
+          isLoading = false
+          emit('loading', false)
+          emit('progress', 0)
+          reject(error)
+        }
+      }
     )
   })
 }
 
-function switchToModel(newModel) {
+function switchToModel(modelScene, modelName) {
   if (currentModel) {
     scene.remove(currentModel)
   }
-  currentModel = newModel
+  currentModel = modelScene
+  currentModel.userData.modelName = modelName
   scene.add(currentModel)
-  // 重置控制器位置
   controls.reset()
 }
 
-// 双击切换模型（循环）
 window.addEventListener('dblclick', () => {
-  const nextModel = currentModel?.userData.modelName === 'hunyuan02.glb'
-    ? 'hunyuan01.glb'
-    : 'hunyuan02.glb'
+  const currentName = currentModel?.userData.modelName || 'hunyuan01.glb'
+  const nextModel = currentName === 'hunyuan01.glb' ? 'hunyuan02.glb' : 'hunyuan01.glb'
 
-  // 标记当前模型名
-  if (currentModel) {
-    currentModel.userData.modelName = nextModel
+  if (modelCache[nextModel]) {
+    switchToModel(modelCache[nextModel], nextModel)
+  } else {
+    loadModel(nextModel)
   }
-
-  loadModel(nextModel)
 })
 </script>
