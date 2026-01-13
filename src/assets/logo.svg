@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="200"
+     height="200"
+     viewBox="0 0 200 200">
+
+  <!-- 示例：网站logo -->
+  <defs>
+    <!-- 定义渐变 -->
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆形 -->
+  <circle cx="100" cy="100" r="90" fill="url(#gradient)"/>
+
+  <!-- 嵌入图片（相对路径） -->
+  <!--
+    路径说明：
+    ./image.png - 同级目录
+    ../images/logo.png - 上级目录的images文件夹
+    /public/logo.png - 项目根目录的public文件夹
+  -->
+  <image
+    x="40"
+    y="40"
+    width="120"
+    height="120"
+    preserveAspectRatio="xMidYMid meet"
+    href="src/assets/style/logo.png"
+  />
+
+  <!-- 文字 -->
+  <text x="100" y="180"
+        text-anchor="middle"
+        font-family="Arial, sans-serif"
+        font-size="16"
+        fill="white"
+        font-weight="bold">
+    数字孪生
+  </text>
+</svg>
